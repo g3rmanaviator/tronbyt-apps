@@ -2,7 +2,7 @@
 Applet: OG Clock Remake with Weather
 Summary: OG Clock Remake with Location Configuration and Weather Display
 Description: A remake of the original Tidbyt Clock App with configurable location and working weather display.
-Author: bendiep (modified)
+Author: g3rmanaviator & bendiep
 
 TODO:
 - Add display location toggle option
