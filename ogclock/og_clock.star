@@ -1,15 +1,9 @@
 """
 Applet: OG Clock Remake with Weather
 Summary: OG Clock Remake with Location Configuration and Weather Display
-Description: A remake of the original Tidbyt Clock App with configurable location and working weather display.
-Author: g3rmanaviator & bendiep
+Description: Display the time in addition to current weather and humidity from either OpenWeather or National Weather Service (no API key required for NWS). To request an OpenWeather API key, see https://home.openweathermap.org/users/sign_up.
+Author: g3rmanaviator (with thanks to bendiep and jwinslow23)
 
-TODO:
-- Add display location toggle option
-- Add display weather toggle option
-- Add blinking separator toggle option
-- Add temperature units option (Celsius/Fahrenheit)
-- Add time color option
 """
 
 load("encoding/base64.star", "base64")
@@ -39,6 +33,7 @@ OPENWEATHER_AIR_POLLUTION_URL = "http://api.openweathermap.org/data/2.5/air_poll
 OPENWEATHER_ONECALL_URL = "https://api.openweathermap.org/data/3.0/onecall?lat={latitude}&lon={longitude}&exclude=minutely,hourly,daily,alerts&appid={api_key}&units={units}&lang=en"
 
 TEMP_COLOR_DEFAULT = "#FFFFFF"
+TIME_NIGHT_COLOR = "#333333"
 
 # Complete weather icons from Time & Weather
 WEATHER_ICONS = {
@@ -122,6 +117,55 @@ def get_openweather_air_pollution(api_key, latitude, longitude):
     air_quality = {}
     air_quality["index"] = int(res.json()["list"][0]["main"]["aqi"])
     return air_quality
+	
+def nightScreen(now, config):
+    # Use OG Clock’s settings
+    use_24_hour = config.bool("24hour_format", False)
+    time_color = TIME_NIGHT_COLOR  # dim color at night
+
+    # Blinking colon: reuse your exact OG logic
+    if config.bool("blink", True):
+        blink_vec = [render.Text(":", font = "6x13", color = time_color)] * 5
+        blink_vec.extend([render.Text(":", font = "6x13", color = "#000")] * 5)
+        blink_text = render.Animation(blink_vec)
+    else:
+        blink_text = render.Text(":", font = "6x13", color = time_color)
+
+    # Hours / minutes: reuse your existing formatting
+    if use_24_hour:
+        hour_text = now.format("15")
+        minute_text = now.format("04")
+    else:
+        if now.hour == 0:
+            hour_text = "12"
+        elif now.hour > 12:
+            hour_text = str(now.hour - 12)
+        else:
+            hour_text = str(now.hour)
+        minute_text = now.format("04 PM")
+
+    return render.Root(
+        delay = 500,
+        max_age = 120,
+        child = render.Padding(
+            pad = (0, 8, 0, 0),
+            child = render.Column(
+                expanded = True,
+                cross_align = "center",
+                children = [
+                    render.Box(width = 64, height = 1),
+                    render.Row(
+                        children = [
+                            render.Text(content = hour_text, font = "6x13", color = time_color),
+                            blink_text,
+                            render.Text(content = minute_text, font = "6x13", color = time_color),
+                        ],
+                    ),
+                ],
+            ),
+        ),
+    )
+
 
 def main(config):
     # Get location info from config or use default
@@ -130,9 +174,49 @@ def main(config):
     latitude = float(location_info["lat"])
     longitude = float(location_info["lng"])
     
-    # Get current time in the configured timezone
+    # Add this right after getting the current time
     now = time.now().in_location(timezone)
 
+    # Night mode check
+    nightModeStr = config.get("nightModeStart")
+    if nightModeStr == None:
+        nightModeStartHr = 23
+        nightModeStartMin = 0
+    else:
+        nightModeStartHr = int(nightModeStr[0:2])
+        if nightModeStartHr >= 24:
+            nightModeStartHr = 0
+        nightModeStartMin = int(nightModeStr[2:4])
+
+    dayModeStr = config.get("nightModeEnd")
+    if dayModeStr == None:
+        dayModeEndHr = 7
+        dayModeEndMin = 0
+    else:
+        dayModeEndHr = int(dayModeStr[0:2])
+        dayModeEndMin = int(dayModeStr[2:4])
+
+    # Update variable names to match:
+    start_total = nightModeStartHr * 60 + nightModeStartMin
+    end_total = dayModeEndHr * 60 + dayModeEndMin
+    
+    night_mode_enabled = config.bool("night_mode", False)
+    if night_mode_enabled:
+        current_hour = now.hour
+        current_minute = now.minute
+        current_total = current_hour * 60 + current_minute
+        
+        # Check if night mode crosses midnight
+        if start_total > end_total:
+            # Crosses midnight (e.g., 23:00 to 07:00)
+            in_night_mode = current_total >= start_total or current_total < end_total
+        else:
+            # Same day (e.g., 01:00 to 05:00)
+            in_night_mode = current_total >= start_total and current_total < end_total
+        
+        if in_night_mode:
+            return nightScreen(now, config)
+               
     # Get display settings from OG Clock
     use_24_hour = config.bool("24hour_format", False)
     time_color = config.get("time_color", "fff")
@@ -325,6 +409,8 @@ def main(config):
                         children = [
                             # Render Weather Icon
                             weather_image,
+                            # Add spacing
+                            render.Box(width = 4, height = 1),
                             render.Column(
                                 children = [
                                     # Render Temperature
@@ -428,6 +514,27 @@ def get_schema():
                 desc = "Blink the colon between hours and minutes.",
                 icon = "gear",
                 default = True,
+            ),
+			schema.Toggle(
+				id = "night_mode",
+				name = "Night Mode",
+				desc = "Enable night mode",
+				icon = "gear",
+				default = False,
+			),
+            schema.Text(
+                id = "nightModeStart",
+                name = "Night Mode Start",
+                icon = "clock",
+                desc = "Use 24-hour format (HHmm), e.g. 2300",
+                default = "2300",
+            ),
+            schema.Text(
+                id = "nightModeEnd", 
+                name = "Night Mode End",
+                icon = "clock",
+                desc = "Use 24-hour format (HHmm), e.g. 0730",
+                default = "0700",
             ),
         ],
     )
