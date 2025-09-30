@@ -3,6 +3,7 @@ Applet: OG Clock Remake with Weather
 Summary: OG Clock Remake with Location Configuration and Weather Display
 Description: Display the time in addition to current weather and humidity from either OpenWeather or National Weather Service (no API key required for NWS). To request an OpenWeather API key, see https://home.openweathermap.org/users/sign_up.
 Author: g3rmanaviator (with thanks to bendiep and jwinslow23)
+Version: 1.0
 
 """
 
@@ -366,13 +367,13 @@ def main(config):
     # Temperature and humidity display
     temp_text = render.Text(
         content = str(result_current_conditions.get("temp", "?")) + "°" + ("C" if display_metric else "F"),
-        font = "tom-thumb",
+        font = "5x8",
         color = temp_color,
     )
     
     humidity_text = render.Text(
         content = str(result_current_conditions.get("humidity", "?")) + "%",
-        font = "tom-thumb",
+        font = "5x8",        
         color = "#848fEE",
     )
 
@@ -518,7 +519,7 @@ def get_schema():
 			schema.Toggle(
 				id = "night_mode",
 				name = "Night Mode",
-				desc = "Enable night mode",
+				desc = "Enable night mode - Dim the display and show only the clock",
 				icon = "gear",
 				default = False,
 			),
